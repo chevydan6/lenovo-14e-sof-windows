@@ -139,7 +139,8 @@ STDAPI DllCanUnloadNow(){return objects||serverLocks?S_FALSE:S_OK;}
 BOOL WINAPI DllMain(HINSTANCE m,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){moduleHandle=m;DisableThreadLibraryCalls(m);}return TRUE;}
 static LSTATUS str(HKEY key,const WCHAR* name,const WCHAR* value){return RegSetValueExW(key,name,0,REG_SZ,reinterpret_cast<const BYTE*>(value),static_cast<DWORD>((wcslen(value)+1)*sizeof(WCHAR)));}
 STDAPI DllRegisterServer(){
- WCHAR path[MAX_PATH];if(!GetModuleFileNameW(moduleHandle,path,MAX_PATH))return HRESULT_FROM_WIN32(GetLastError());
+ HMODULE self=moduleHandle;GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,reinterpret_cast<LPCWSTR>(&DllRegisterServer),&self);
+ WCHAR path[MAX_PATH];if(!GetModuleFileNameW(self,path,MAX_PATH))return HRESULT_FROM_WIN32(GetLastError());
  WCHAR key[512];HKEY h;swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls\\InprocServer32",kClsidText);
  LSTATUS e=RegCreateKeyExW(HKEY_LOCAL_MACHINE,key,0,nullptr,0,KEY_WRITE,nullptr,&h,nullptr);if(e)return HRESULT_FROM_WIN32(e);
  e=str(h,nullptr,path);if(!e)e=str(h,L"ThreadingModel",L"Both");RegCloseKey(h);if(e)return HRESULT_FROM_WIN32(e);

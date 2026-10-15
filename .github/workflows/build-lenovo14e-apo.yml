@@ -24,6 +24,17 @@ jobs:
         run: |
           & ./build/apo/Release/lenovo14e-apo-probe.exe ./build/apo/Release/lenovo14eapo.dll
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $stage = Join-Path $env:ProgramFiles 'Lenovo14eAudio/Installer'
+          New-Item $stage -ItemType Directory -Force | Out-Null
+          $identity = Join-Path $stage 'test-identity.txt'
+          $runner = Join-Path $stage 'test-system-worker.ps1'
+          Set-Content $runner "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value | Set-Content '$identity'"
+          & ./build/apo/Release/lenovo14e-apo-worker.exe --run $runner ('Lenovo14eTest-'+[Guid]::NewGuid().ToString('N'))
+          if ($LASTEXITCODE) { throw 'Temporary SYSTEM installer service failed.' }
+          if ((Get-Content $identity -Raw).Trim() -ne 'S-1-5-18') { throw 'Installer did not run as SYSTEM.' }
+          $tokens=$null; $parseErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path apo/install.ps1),[ref]$tokens,[ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
           Copy-Item apo/install.ps1 build/apo/Release/
       - uses: actions/upload-artifact@v4
         with:
@@ -32,3 +43,4 @@ jobs:
             build/apo/Release/lenovo14eapo.dll
             build/apo/Release/lenovo14e-apo-probe.exe
             build/apo/Release/install.ps1
+            build/apo/Release/lenovo14e-apo-worker.exe

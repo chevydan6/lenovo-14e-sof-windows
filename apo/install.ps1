@@ -10,6 +10,13 @@ $efx='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7'
 $association='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},0'
 $modes='{d3993a3f-99c2-4402-b5ec-a92a0367664b},7'
 $disable='{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5'
+function Register-Apo([bool]$Remove) {
+ $arguments=@('/s')
+ if($Remove){$arguments+='/u'}
+ $arguments+=('"{0}"' -f (Join-Path $root 'lenovo14eapo.dll'))
+ $process=Start-Process -FilePath "$env:WINDIR\System32\regsvr32.exe" -ArgumentList $arguments -Wait -PassThru
+ if($process.ExitCode -ne 0){throw "APO registration tool returned exit code $($process.ExitCode)."}
+}
 function Restart-Audio {
  if($NoRestart){return}
  Stop-Service Audiosrv -Force
@@ -25,7 +32,7 @@ function Read-Value($path,$name) {
 function Restore-Values($values) {
  foreach($v in $values){
   if($v.Exists){
-   New-Item $v.Path -Force | Out-Null
+   if(-not(Test-Path $v.Path)){New-Item $v.Path -Force | Out-Null}
    $value=$v.Value
    switch($v.Kind){ 'Binary' {$value=[byte[]]$value};'DWord' {$value=[int]$value};'QWord' {$value=[long]$value};'MultiString' {$value=[string[]]$value} }
    New-ItemProperty $v.Path -Name $v.Name -PropertyType $v.Kind -Value $value -Force | Out-Null
@@ -34,12 +41,12 @@ function Restore-Values($values) {
 }
 $id=[Security.Principal.WindowsIdentity]::GetCurrent()
 if(-not (New-Object Security.Principal.WindowsPrincipal($id)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Run this installer in an elevated PowerShell window.'}
-# MMDevices effect stores are SYSTEM-owned. Use a short-lived scheduled task
+# MMDevices effect stores are SYSTEM-owned. Use a short-lived installer service
 # rather than changing ownership or permanently broadening their ACLs.
 if($id.User.Value -ne 'S-1-5-18'){
  $stage=Join-Path $root 'Installer'
  New-Item $stage -ItemType Directory -Force | Out-Null
- foreach($name in @('install.ps1','lenovo14eapo.dll','lenovo14e-apo-probe.exe')){
+ foreach($name in @('install.ps1','lenovo14eapo.dll','lenovo14e-apo-probe.exe','lenovo14e-apo-worker.exe')){
   $source=Join-Path $PSScriptRoot $name;$dest=Join-Path $stage $name
   if([IO.Path]::GetFullPath($source) -ne [IO.Path]::GetFullPath($dest)){Copy-Item $source $dest -Force}
  }
@@ -47,26 +54,16 @@ if($id.User.Value -ne 'S-1-5-18'){
  if($VirtualMachine){$flags+=' -VirtualMachine'}
  if($Rollback){$flags+=' -Rollback'}
  if($NoRestart){$flags+=' -NoRestart'}
- $log=Join-Path $stage 'operation.log'
- $runner=Join-Path $stage 'run-operation.ps1'
- $escaped=(Join-Path $stage 'install.ps1').Replace("'","''")
- $escapedLog=$log.Replace("'","''")
+ $operation='Lenovo14eAudio-'+[Guid]::NewGuid().ToString('N')
+ $log=Join-Path $stage ($operation+'.log')
+ $runner=Join-Path $stage ($operation+'.ps1')
+ $escaped=(Join-Path $stage 'install.ps1').Replace("'","''");$escapedLog=$log.Replace("'","''")
  $body="`$ErrorActionPreference='Stop'`ntry { & '$escaped'$flags *>&1 | Out-File '$escapedLog'; exit 0 } catch { `$_ | Out-String | Add-Content '$escapedLog'; exit 1 }"
  Set-Content $runner $body -Encoding UTF8
- $task='Lenovo14eAudio-'+[Guid]::NewGuid().ToString('N')
- $action=New-ScheduledTaskAction -Execute "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$runner`""
- $principal=New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
- try {
-  Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force | Out-Null
-  Start-ScheduledTask -TaskName $task
-  $deadline=(Get-Date).AddSeconds(90)
-  do { Start-Sleep -Milliseconds 250; $state=(Get-ScheduledTask -TaskName $task).State; $info=Get-ScheduledTaskInfo -TaskName $task } while(($state -eq 'Running' -or $info.LastRunTime.Year -lt 2000) -and (Get-Date) -lt $deadline)
-  if((Get-Date) -ge $deadline){throw 'The SYSTEM installer task timed out; inspect its operation log.'}
-  if(Test-Path $log){Get-Content $log}
-  if($info.LastTaskResult -ne 0){throw "The SYSTEM installer returned $($info.LastTaskResult). See $log"}
- } finally {
-  if(Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue){Unregister-ScheduledTask -TaskName $task -Confirm:$false}
- }
+ & (Join-Path $stage 'lenovo14e-apo-worker.exe') --run $runner $operation
+ $code=$LASTEXITCODE
+ if(Test-Path $log){Get-Content $log}
+ if($code -ne 0){throw "The SYSTEM installer failed ($code). See $log"}
  return
 }
 if($Rollback){
@@ -75,8 +72,7 @@ if($Rollback){
  $now=Get-ItemPropertyValue $record.FxPath -Name $efx -ErrorAction SilentlyContinue
  if($now -and $now -ne $clsid){throw 'Another effect replaced this APO. Refusing to overwrite it during rollback.'}
  Restore-Values $record.Values
- & "$env:WINDIR\System32\regsvr32.exe" /s /u (Join-Path $root 'lenovo14eapo.dll')
- if($LASTEXITCODE -ne 0){throw 'APO unregistration failed.'}
+ Register-Apo $true
  Restart-Audio
  Move-Item $backup ($backup+'.removed-'+(Get-Date -Format yyyyMMddHHmmss))
  Write-Output 'RESTORED: previous speaker effects. Kernel drivers were not changed.'
@@ -110,9 +106,8 @@ Copy-Item (Join-Path $PSScriptRoot 'lenovo14e-apo-probe.exe') $root -Force
 $record=@{Endpoint=$target.PSChildName;FxPath=$fx;Values=$values;InstalledAt=(Get-Date).ToString('o');VirtualMachine=[bool]$VirtualMachine}
 $record | ConvertTo-Json -Depth 8 | Set-Content $backup -Encoding UTF8
 try {
- & "$env:WINDIR\System32\regsvr32.exe" /s (Join-Path $root 'lenovo14eapo.dll')
- if($LASTEXITCODE -ne 0){throw 'COM/APO registration failed.'}
- New-Item $fx -Force | Out-Null
+ Register-Apo $false
+ if(-not(Test-Path $fx)){New-Item $fx -Force | Out-Null}
  New-ItemProperty $fx -Name $association -Value '{00000000-0000-0000-0000-000000000000}' -PropertyType String -Force | Out-Null
  New-ItemProperty $fx -Name $efx -Value $clsid -PropertyType String -Force | Out-Null
  New-ItemProperty $fx -Name $modes -Value @('{C18E2F7E-933D-4965-B7D1-1EEF228D2AF3}') -PropertyType MultiString -Force | Out-Null
@@ -122,7 +117,7 @@ try {
  Write-Output 'The kernel driver, amplifier watchdog, microphone and headphones were not modified.'
 }catch{
  Restore-Values $values
- & "$env:WINDIR\System32\regsvr32.exe" /s /u (Join-Path $root 'lenovo14eapo.dll')
+ Register-Apo $true
  Remove-Item $backup -ErrorAction SilentlyContinue
  Restart-Audio
  throw
