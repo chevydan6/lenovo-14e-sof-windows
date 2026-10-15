@@ -21,7 +21,11 @@ public:
  HRESULT STDMETHODCALLTYPE GetUncompressedAudioFormat(UNCOMPRESSEDAUDIOFORMAT* p)override{if(!p)return E_POINTER;*p={kFloat,channels,4,32,static_cast<float>(rate),3};return S_OK;}
 };
 static int status(){
- HANDLE h=OpenFileMappingW(FILE_MAP_READ,FALSE,kTelemetryName);if(!h){std::puts("{\"available\":false}");return 2;}
+ HANDLE h=nullptr;
+ auto path=telemetryPath();HANDLE file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+ if(file!=INVALID_HANDLE_VALUE){h=CreateFileMappingW(file,nullptr,PAGE_READONLY,0,sizeof(Telemetry),nullptr);CloseHandle(file);}
+ if(!h)h=OpenFileMappingW(FILE_MAP_READ,FALSE,kTelemetryName);
+ if(!h){std::puts("{\"available\":false}");return 2;}
  auto t=static_cast<const Telemetry*>(MapViewOfFile(h,FILE_MAP_READ,0,0,sizeof(Telemetry)));if(!t){CloseHandle(h);return 2;}
  std::printf("{\"available\":true,\"initialized\":%lld,\"locks\":%lld,\"calls\":%lld,\"frames\":%lld,\"silentFrames\":%lld,\"errors\":%lld,\"hostPid\":%ld,\"rate\":%ld,\"channels\":%ld,\"lastHr\":%ld}\n",t->initialized,t->locks,t->calls,t->frames,t->silentFrames,t->errors,t->hostPid,t->lastRate,t->lastChannels,t->lastHr);
  UnmapViewOfFile(t);CloseHandle(h);return 0;

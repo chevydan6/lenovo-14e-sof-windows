@@ -34,17 +34,23 @@ class LenovoApo final : public IAudioProcessingObject,public IAudioProcessingObj
  HANDLE mapping=nullptr;
  Telemetry* telemetry=nullptr;
  void connectTelemetry() {
-  PSECURITY_DESCRIPTOR sd=nullptr;
-  ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;GR;;;AU)",SDDL_REVISION_1,&sd,nullptr);
-  SECURITY_ATTRIBUTES sa{sizeof(sa),sd,FALSE};
-  mapping=CreateFileMappingW(INVALID_HANDLE_VALUE,sd?&sa:nullptr,PAGE_READWRITE,0,sizeof(Telemetry),kTelemetryName);
-  if(sd)LocalFree(sd);
+  auto path=telemetryPath();
+  HANDLE file=CreateFileW(path.c_str(),GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+  if(file!=INVALID_HANDLE_VALUE){mapping=CreateFileMappingW(file,nullptr,PAGE_READWRITE,0,sizeof(Telemetry),nullptr);CloseHandle(file);}
+  if(!mapping){
+   PSECURITY_DESCRIPTOR sd=nullptr;
+   ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;GR;;;AU)",SDDL_REVISION_1,&sd,nullptr);
+   SECURITY_ATTRIBUTES sa{sizeof(sa),sd,FALSE};
+   mapping=CreateFileMappingW(INVALID_HANDLE_VALUE,sd?&sa:nullptr,PAGE_READWRITE,0,sizeof(Telemetry),kTelemetryName);
+   if(sd)LocalFree(sd);
+  }
   if(mapping)telemetry=static_cast<Telemetry*>(MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(Telemetry)));
+  if(telemetry)VirtualLock(telemetry,sizeof(Telemetry));
  }
  HRESULT failed(HRESULT hr) {if(telemetry){InterlockedIncrement64(&telemetry->errors);InterlockedExchange(&telemetry->lastHr,hr);}return hr;}
 public:
- LenovoApo(){InterlockedIncrement(&objects);}
- ~LenovoApo(){if(pinned)VirtualUnlock(&state,sizeof(state));if(telemetry)UnmapViewOfFile(telemetry);if(mapping)CloseHandle(mapping);InterlockedDecrement(&objects);}
+ LenovoApo(){InterlockedIncrement(&objects);connectTelemetry();}
+ ~LenovoApo(){if(pinned)VirtualUnlock(&state,sizeof(state));if(telemetry){VirtualUnlock(telemetry,sizeof(Telemetry));UnmapViewOfFile(telemetry);}if(mapping)CloseHandle(mapping);InterlockedDecrement(&objects);}
  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** pp) override {
   if(!pp)return E_POINTER;*pp=nullptr;
   if(same(iid,IID_IUnknown)||same(iid,kApo))*pp=static_cast<IAudioProcessingObject*>(this);
@@ -58,9 +64,9 @@ public:
  ULONG STDMETHODCALLTYPE Release() override {LONG n=InterlockedDecrement(&references);if(!n)delete this;return n;}
  HRESULT STDMETHODCALLTYPE Initialize(UINT32 bytes,BYTE* data) override {
   if(initialized)return static_cast<HRESULT>(0x887d0001);
-  if(bytes && (!data || bytes<sizeof(APOInitBaseStruct)))return E_INVALIDARG;
-  if(bytes && !same(reinterpret_cast<APOInitBaseStruct*>(data)->clsid,kClsid))return static_cast<HRESULT>(0x887d0004);
-  connectTelemetry();if(telemetry){InterlockedIncrement64(&telemetry->initialized);InterlockedExchange(&telemetry->hostPid,GetCurrentProcessId());}
+  if(bytes && (!data || bytes<sizeof(APOInitBaseStruct)))return failed(E_INVALIDARG);
+  if(bytes && !same(reinterpret_cast<APOInitBaseStruct*>(data)->clsid,kClsid))return failed(static_cast<HRESULT>(0x887d0004));
+  if(telemetry){InterlockedIncrement64(&telemetry->initialized);InterlockedExchange(&telemetry->hostPid,GetCurrentProcessId());}
   cb_config c;cb_measured_config(&c,50);
   // EFX receives Windows' already volume-scaled samples. Remove the fixed
   // 50%-capture reference, NOT the user's actual volume attenuation.
@@ -144,13 +150,14 @@ STDAPI DllRegisterServer(){
  WCHAR key[512];HKEY h;swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls\\InprocServer32",kClsidText);
  LSTATUS e=RegCreateKeyExW(HKEY_LOCAL_MACHINE,key,0,nullptr,0,KEY_WRITE,nullptr,&h,nullptr);if(e)return HRESULT_FROM_WIN32(e);
  e=str(h,nullptr,path);if(!e)e=str(h,L"ThreadingModel",L"Both");RegCloseKey(h);if(e)return HRESULT_FROM_WIN32(e);
- swprintf(key,512,L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Audio\\AudioProcessingObjects\\%ls",kClsidText);
+ swprintf(key,512,L"SOFTWARE\\Classes\\AudioEngine\\AudioProcessingObjects\\%ls",kClsidText);
  e=RegCreateKeyExW(HKEY_LOCAL_MACHINE,key,0,nullptr,0,KEY_WRITE,nullptr,&h,nullptr);if(e)return HRESULT_FROM_WIN32(e);
  e=str(h,L"FriendlyName",L"Lenovo 14e Gen 3 Speaker Processing");
+ if(!e)e=str(h,L"Copyright",L"Independent open-source speaker processing; MIT");
  const WCHAR* names[]={L"MajorVersion",L"MinorVersion",L"Flags",L"MinInputConnections",L"MaxInputConnections",L"MinOutputConnections",L"MaxOutputConnections",L"MaxInstances",L"NumAPOInterfaces"};
  DWORD values[]={0,3,15,1,1,1,1,0xffffffff,1};
  for(unsigned i=0;i<9&&!e;++i)e=RegSetValueExW(h,names[i],0,REG_DWORD,reinterpret_cast<const BYTE*>(&values[i]),sizeof(DWORD));
  if(!e)e=RegSetValueExW(h,L"APOInterface0",0,REG_SZ,reinterpret_cast<const BYTE*>(L"{FD7F2B29-24D0-4B5C-B177-592C39F9CA10}"),39*sizeof(WCHAR));
  RegCloseKey(h);return HRESULT_FROM_WIN32(e);
 }
-STDAPI DllUnregisterServer(){WCHAR key[512];swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);swprintf(key,512,L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Audio\\AudioProcessingObjects\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);return S_OK;}
+STDAPI DllUnregisterServer(){WCHAR key[512];swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);swprintf(key,512,L"SOFTWARE\\Classes\\AudioEngine\\AudioProcessingObjects\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);return S_OK;}

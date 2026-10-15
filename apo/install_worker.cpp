@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdio>
+#include "registry_access.h"
 static SERVICE_STATUS_HANDLE statusHandle;
 static SERVICE_STATUS serviceStatus{};
 static HANDLE stopEvent;
@@ -49,6 +50,8 @@ static int run(const wchar_t* script,const wchar_t* name){
  DeleteService(service);CloseServiceHandle(service);CloseServiceHandle(manager);return static_cast<int>(result);
 }
 int wmain(int argc,wchar_t** argv){
+ if(argc==4&&!wcscmp(argv[1],L"--unlock-registry"))return registryAccess(false,argv[2],argv[3]);
+ if(argc==4&&!wcscmp(argv[1],L"--restore-registry"))return registryAccess(true,argv[2],argv[3]);
  if(argc==4&&!wcscmp(argv[1],L"--run"))return run(argv[2],argv[3]);
  if(argc==4&&!wcscmp(argv[1],L"--service")){workerName=argv[2];workerScript=argv[3];SERVICE_TABLE_ENTRYW table[]={{workerName.data(),serviceMain},{nullptr,nullptr}};return StartServiceCtrlDispatcherW(table)?0:1;}
  std::fputs("Usage: lenovo14e-apo-worker --run <protected installer script> <temporary service name>\n",stderr);return 1;

@@ -21,12 +21,13 @@ cross-compilation command in the root README. Outputs:
 
 - `lenovo14eapo.dll`: self-contained DSP and APO.
 - `lenovo14e-apo-probe.exe`: native contract tests, telemetry, quiet WASAPI render.
+- `lenovo14e-apo-worker.exe`: temporary SYSTEM installer service and narrowly scoped registry access helper.
 
 No Windows kernel driver is built or replaced by this CMake project.
 
 ## Development installation
 
-Place both binaries and `install.ps1` together. In elevated 64-bit PowerShell:
+Place all three binaries and `install.ps1` together. In elevated 64-bit PowerShell:
 
 ```powershell
 .\install.ps1
@@ -37,7 +38,11 @@ SOF speaker endpoint. `-VirtualMachine` is for virtual-machine testing only;
 it also verifies that the machine is a VM. It records the exact affected
 registry values under `%ProgramData%\Lenovo14eAudio`, registers the COM/APO
 DLL under Program Files, enables the speaker effect, and restarts Windows
-audio services. It refuses to replace an unrelated existing endpoint APO.
+Audio. It uses a one-shot SYSTEM service, marks the service for deletion
+as soon as it starts, and temporarily grants SYSTEM access to the selected
+endpoint property keys. Original owner/group/DACL descriptors are saved and
+restored in a finally block. It does not change the audio services' configuration
+or leave a persistent installer service. It refuses to replace an unrelated existing endpoint APO.
 
 This is a reversible development registration, not a signed componentized
 production INF package. No boot/signature policy is altered. Protected audio
@@ -67,9 +72,9 @@ locks/reset, bounds, silence, channel isolation and latency, without registering
 an endpoint effect. `--render` plays three seconds of -60 dBFS 200 Hz stereo
 through the default Windows shared-mode output. It is not a maximum-output
 test. An optional third argument supplies an explicit Core Audio endpoint ID.
-`--status` reads counters from shared memory; compare frame/call counters before
+`--status` reads counters from a memory-mapped diagnostic file (with a named shared-memory fallback for standalone tests); compare frame/call counters before
 and during playback, and verify that `hostPid` is the relevant `audiodg.exe`.
-The direct contract test also creates an APO instance, so its counters alone
+The diagnostic file contains counters only, with read access for users and write access for the audio service. The callback only updates mapped memory. The direct contract test also creates an APO instance, so its counters alone
 do not prove system integration.
 
 See [validation](../docs/lenovo14e-apo-validation.md) for actual test evidence.

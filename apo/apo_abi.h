@@ -4,6 +4,7 @@
 // MinGW (which does not ship audioenginebaseapo.h). Not an alternative API.
 // Layout and method order checked against Microsoft's published SDK headers.
 #include <windows.h>
+#include <string>
 #include <unknwn.h>
 #include <mmreg.h>
 #include <audioapotypes.h>
@@ -68,10 +69,15 @@ inline constexpr HRESULT kFormatError=static_cast<HRESULT>(0x887d0003);
 inline constexpr HRESULT kLocked=static_cast<HRESULT>(0x887d000a);
 inline constexpr WCHAR kClsidText[]=L"{C324C041-34EC-4D9A-9CC8-B06514E00001}";
 inline constexpr WCHAR kTelemetryName[]=L"Global\\Lenovo14eSofApoTelemetryV1";
+inline std::wstring telemetryPath() {
+ wchar_t data[MAX_PATH];DWORD n=GetEnvironmentVariableW(L"ProgramData",data,MAX_PATH);
+ return n&&n<MAX_PATH?std::wstring(data)+L"\\Lenovo14eAudio\\telemetry.bin":std::wstring();
+}
 struct alignas(8) Telemetry {
  volatile LONG64 initialized,locks,calls,frames,silentFrames,errors;
  volatile LONG hostPid,lastRate,lastChannels,lastHr;
 };
+static_assert(sizeof(Telemetry)==64,"Shared counter file ABI");
 static_assert(sizeof(APO_CONNECTION_DESCRIPTOR)==40,"APO descriptor x64 ABI");
 static_assert(sizeof(APO_CONNECTION_PROPERTY)==24,"APO property x64 ABI");
 static_assert(sizeof(UNCOMPRESSEDAUDIOFORMAT)==36,"Audio media ABI");
