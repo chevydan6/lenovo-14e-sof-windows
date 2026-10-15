@@ -7,6 +7,7 @@ $root=Join-Path $env:ProgramFiles 'Lenovo14eAudio'
 $backup=Join-Path $env:ProgramData 'Lenovo14eAudio\installation.json'
 $clsid='{C324C041-34EC-4D9A-9CC8-B06514E00001}'
 $efx='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7'
+$association='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},0'
 $modes='{d3993a3f-99c2-4402-b5ec-a92a0367664b},7'
 $disable='{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5'
 function Restart-Audio {
@@ -99,7 +100,7 @@ $targets=@(Get-ChildItem $render | Where-Object {
 })
 if($targets.Count -ne 1){throw "Expected one active supported speaker endpoint; found $($targets.Count)."}
 $target=$targets[0];$fx=$target.PSPath+'\FxProperties';$props=$target.PSPath+'\Properties'
-$values=@((Read-Value $fx $efx),(Read-Value $fx $modes),(Read-Value $props $disable))
+$values=@((Read-Value $fx $efx),(Read-Value $fx $modes),(Read-Value $props $disable),(Read-Value $fx $association))
 # Refuse to silently replace an existing endpoint effect.
 $prior=$values[0];if($prior.Exists -and $prior.Value -and $prior.Value -ne $clsid){throw "The speaker already has an endpoint APO: $($prior.Value)."}
 New-Item $root -ItemType Directory -Force | Out-Null
@@ -112,6 +113,7 @@ try {
  & "$env:WINDIR\System32\regsvr32.exe" /s (Join-Path $root 'lenovo14eapo.dll')
  if($LASTEXITCODE -ne 0){throw 'COM/APO registration failed.'}
  New-Item $fx -Force | Out-Null
+ New-ItemProperty $fx -Name $association -Value '{00000000-0000-0000-0000-000000000000}' -PropertyType String -Force | Out-Null
  New-ItemProperty $fx -Name $efx -Value $clsid -PropertyType String -Force | Out-Null
  New-ItemProperty $fx -Name $modes -Value @('{C18E2F7E-933D-4965-B7D1-1EEF228D2AF3}') -PropertyType MultiString -Force | Out-Null
  New-ItemProperty $props -Name $disable -Value 0 -PropertyType DWord -Force | Out-Null

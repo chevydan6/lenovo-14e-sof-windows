@@ -38,7 +38,7 @@ static int render(const wchar_t* endpoint){
  IAudioRenderClient* rc=nullptr;CHECK(SUCCEEDED(audio->GetService(__uuidof(IAudioRenderClient),reinterpret_cast<void**>(&rc))));UINT32 capacity=0;CHECK(SUCCEEDED(audio->GetBufferSize(&capacity)));
  UINT32 done=0;CHECK(SUCCEEDED(audio->Start()));
  while(done<144000){UINT32 pad=0;CHECK(SUCCEEDED(audio->GetCurrentPadding(&pad)));UINT32 n=std::min<UINT32>(capacity-pad,144000-done);if(!n){Sleep(4);continue;}BYTE* b=nullptr;CHECK(SUCCEEDED(rc->GetBuffer(n,&b)));auto v=reinterpret_cast<float*>(b);for(UINT32 i=0;i<n;++i){float sample=.001f*std::sin(6.283185307179586*200*(done+i)/48000);v[2*i]=v[2*i+1]=sample;}CHECK(SUCCEEDED(rc->ReleaseBuffer(n,0)));done+=n;}
- Sleep(200);audio->Stop();rc->Release();audio->Release();device->Release();e->Release();CoTaskMemFree(f);CoUninitialize();std::puts("PASS: three seconds of -60 dBFS stereo WASAPI playback");return 0;
+ Sleep(200);status();audio->Stop();rc->Release();audio->Release();device->Release();e->Release();CoTaskMemFree(f);CoUninitialize();std::puts("PASS: three seconds of -60 dBFS stereo WASAPI playback");return 0;
 }
 static int test(const wchar_t* path){
  auto m=LoadLibraryW(path);CHECK(m);

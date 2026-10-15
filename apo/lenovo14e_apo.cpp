@@ -93,7 +93,7 @@ public:
   if(locked)return kLocked;if(!initialized)return failed(static_cast<HRESULT>(0x887d0002));
   if(ni!=1||no!=1||!in||!out||!in[0]||!out[0])return failed(E_INVALIDARG);
   if(!format(in[0]->pFormat)||!format(out[0]->pFormat))return failed(kFormatError);
-  if(!in[0]->u32MaxFrameCount||out[0]->u32MaxFrameCount<in[0]->u32MaxFrameCount)return failed(E_INVALIDARG);
+  if(!in[0]->u32MaxFrameCount||in[0]->u32MaxFrameCount>48000||out[0]->u32MaxFrameCount<in[0]->u32MaxFrameCount)return failed(E_INVALIDARG);
   maximumFrames=in[0]->u32MaxFrameCount;cb_reset(&state);
   pinned=!!VirtualLock(&state,sizeof(state));locked=true;
   if(telemetry){InterlockedIncrement64(&telemetry->locks);InterlockedExchange(&telemetry->lastRate,48000);InterlockedExchange(&telemetry->lastChannels,2);}
