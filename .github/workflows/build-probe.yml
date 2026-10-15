@@ -1,10 +1,6 @@
 name: Build N100 SOF development probe
 
 on:
-  push:
-    paths:
-      - 'driver/**'
-      - '.github/workflows/build-probe.yml'
   workflow_dispatch:
 
 permissions:

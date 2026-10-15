@@ -1,12 +1,6 @@
 name: Build RT5682 headphone codec driver
 
 on:
-  push:
-    paths:
-      - 'driver/codec/**'
-      - 'tools/test-codec-transport.py'
-      - 'tools/test-codec-init.py'
-      - '.github/workflows/build-codec.yml'
   workflow_dispatch:
 
 permissions:

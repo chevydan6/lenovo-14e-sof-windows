@@ -1,20 +1,6 @@
 name: Build N100 ACX speaker prototype
 
 on:
-  push:
-    paths:
-      - 'driver/acx/**'
-      - 'driver/speaker/**'
-      - 'driver/amp/amp-interface.h'
-      - 'tools/test-right-preview.py'
-      - 'driver/sofprobe.c'
-      - 'driver/sofprobe-ioctl.h'
-      - 'tools/test-audio-format.py'
-      - 'tools/test-acx-ring.py'
-      - 'tools/test-acx-packet-lifetime.py'
-      - 'tools/test-amp-hold.py'
-      - 'tools/test-speaker-check.py'
-      - '.github/workflows/build-acx.yml'
   workflow_dispatch:
 
 permissions:

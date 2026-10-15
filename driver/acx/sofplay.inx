@@ -75,12 +75,12 @@ HKR,EP\0,%AudioEngineOemFormat%,0x00000001,41,00,00,00,28,00,00,00,\
  03,00,00,00,01,00,00,00,00,00,10,00,80,00,00,AA,00,38,9B,71
 
 [Strings]
-ProviderName="Open SOF Windows Project"
-DiskName="N100 SOF ACX speaker"
-DeviceName="N100 SOF speaker (development)"
-ServiceName="N100 SOF ACX speaker"
+ProviderName="Lenovo 14e SOF Community Project"
+DiskName="Lenovo 14e Gen 3 SOF speaker"
+DeviceName="Lenovo 14e Gen 3 SOF speaker (development)"
+ServiceName="Lenovo 14e Gen 3 SOF speaker"
 SpeakerName="Speaker0"
-SpeakerFriendlyName="N100 SOF Speakers"
+SpeakerFriendlyName="Lenovo 14e Gen 3 SOF Speakers"
 ProxyClsid="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
 KsCategoryAudio="{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
 KsCategoryRender="{65E8773E-8F56-11D0-A3B9-00A0C9223196}"

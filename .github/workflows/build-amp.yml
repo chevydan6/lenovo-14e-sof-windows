@@ -1,13 +1,6 @@
 name: Build guarded amplifier driver
 
 on:
-  push:
-    paths:
-      - 'driver/amp/**'
-      - 'driver/acx/sofplay-startup.inc'
-      - 'tools/test-amp-hold.py'
-      - 'tools/test-amp-lifecycle.py'
-      - '.github/workflows/build-amp.yml'
   workflow_dispatch:
 
 permissions:

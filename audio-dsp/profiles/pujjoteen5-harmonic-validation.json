@@ -1,0 +1,198 @@
+{
+  "rms_db": 2.022233806261402,
+  "max_abs_db": 5.467000510748338,
+  "rows": [
+    {
+      "volume": 50,
+      "frequency": 80,
+      "input_dbfs": -60,
+      "observed_h3_db": -34.16656600539345,
+      "model_h3_db": -28.69956549464511,
+      "error_db": 5.467000510748338
+    },
+    {
+      "volume": 50,
+      "frequency": 80,
+      "input_dbfs": -48,
+      "observed_h3_db": -27.029022918350037,
+      "model_h3_db": -25.219810837291856,
+      "error_db": 1.809212081058181
+    },
+    {
+      "volume": 50,
+      "frequency": 80,
+      "input_dbfs": -36,
+      "observed_h3_db": -23.192161384663365,
+      "model_h3_db": -22.980111707588833,
+      "error_db": 0.21204967707453193
+    },
+    {
+      "volume": 50,
+      "frequency": 80,
+      "input_dbfs": -24,
+      "observed_h3_db": -21.603636587969785,
+      "model_h3_db": -21.75205523990526,
+      "error_db": -0.14841865193547576
+    },
+    {
+      "volume": 50,
+      "frequency": 120,
+      "input_dbfs": -60,
+      "observed_h3_db": -46.65113545232125,
+      "model_h3_db": -48.462844232364986,
+      "error_db": -1.8117087800437375
+    },
+    {
+      "volume": 50,
+      "frequency": 120,
+      "input_dbfs": -48,
+      "observed_h3_db": -41.65668788361369,
+      "model_h3_db": -43.91561880733532,
+      "error_db": -2.2589309237216284
+    },
+    {
+      "volume": 50,
+      "frequency": 120,
+      "input_dbfs": -36,
+      "observed_h3_db": -38.70670344400807,
+      "model_h3_db": -40.6559422522578,
+      "error_db": -1.9492388082497314
+    },
+    {
+      "volume": 50,
+      "frequency": 120,
+      "input_dbfs": -24,
+      "observed_h3_db": -36.767577731471164,
+      "model_h3_db": -39.16524090013285,
+      "error_db": -2.397663168661687
+    },
+    {
+      "volume": 50,
+      "frequency": 200,
+      "input_dbfs": -60,
+      "observed_h3_db": -61.21189798786318,
+      "model_h3_db": -60.31649123627644,
+      "error_db": 0.8954067515867408
+    },
+    {
+      "volume": 50,
+      "frequency": 200,
+      "input_dbfs": -48,
+      "observed_h3_db": -55.70526967799755,
+      "model_h3_db": -54.25672117217903,
+      "error_db": 1.448548505818522
+    },
+    {
+      "volume": 50,
+      "frequency": 200,
+      "input_dbfs": -36,
+      "observed_h3_db": -52.54869268667064,
+      "model_h3_db": -49.97526368903142,
+      "error_db": 2.573428997639219
+    },
+    {
+      "volume": 50,
+      "frequency": 200,
+      "input_dbfs": -24,
+      "observed_h3_db": -49.021546230958116,
+      "model_h3_db": -47.26358520686898,
+      "error_db": 1.7579610240891341
+    },
+    {
+      "volume": 100,
+      "frequency": 80,
+      "input_dbfs": -60,
+      "observed_h3_db": -26.054471657170186,
+      "model_h3_db": -24.655354988941674,
+      "error_db": 1.3991166682285119
+    },
+    {
+      "volume": 100,
+      "frequency": 80,
+      "input_dbfs": -48,
+      "observed_h3_db": -22.733944630422663,
+      "model_h3_db": -22.63900489377172,
+      "error_db": 0.09493973665094302
+    },
+    {
+      "volume": 100,
+      "frequency": 80,
+      "input_dbfs": -36,
+      "observed_h3_db": -21.463048797163378,
+      "model_h3_db": -21.672903218898686,
+      "error_db": -0.209854421735308
+    },
+    {
+      "volume": 100,
+      "frequency": 80,
+      "input_dbfs": -24,
+      "observed_h3_db": -21.131309137785877,
+      "model_h3_db": -21.69126009544204,
+      "error_db": -0.559950957656163
+    },
+    {
+      "volume": 100,
+      "frequency": 120,
+      "input_dbfs": -60,
+      "observed_h3_db": -40.871879744335814,
+      "model_h3_db": -43.08385975657137,
+      "error_db": -2.211980012235557
+    },
+    {
+      "volume": 100,
+      "frequency": 120,
+      "input_dbfs": -48,
+      "observed_h3_db": -38.242934764560474,
+      "model_h3_db": -40.245356167842374,
+      "error_db": -2.0024214032819003
+    },
+    {
+      "volume": 100,
+      "frequency": 120,
+      "input_dbfs": -36,
+      "observed_h3_db": -36.42377198739815,
+      "model_h3_db": -38.91806337436822,
+      "error_db": -2.494291386970069
+    },
+    {
+      "volume": 100,
+      "frequency": 120,
+      "input_dbfs": -24,
+      "observed_h3_db": -34.83270708354101,
+      "model_h3_db": -37.33096391693429,
+      "error_db": -2.4982568333932775
+    },
+    {
+      "volume": 100,
+      "frequency": 200,
+      "input_dbfs": -60,
+      "observed_h3_db": -54.88291442657964,
+      "model_h3_db": -53.20061335288724,
+      "error_db": 1.6823010736924005
+    },
+    {
+      "volume": 100,
+      "frequency": 200,
+      "input_dbfs": -48,
+      "observed_h3_db": -50.59629652567759,
+      "model_h3_db": -49.32125001540107,
+      "error_db": 1.2750465102765176
+    },
+    {
+      "volume": 100,
+      "frequency": 200,
+      "input_dbfs": -36,
+      "observed_h3_db": -48.61489163022409,
+      "model_h3_db": -46.78854859449842,
+      "error_db": 1.826343035725671
+    },
+    {
+      "volume": 100,
+      "frequency": 200,
+      "input_dbfs": -24,
+      "observed_h3_db": -46.472525944158946,
+      "model_h3_db": -44.77231202594011,
+      "error_db": 1.7002139182188358
+    }
+  ]
+}

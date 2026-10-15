@@ -1,24 +1,6 @@
 name: Build muted N100 ACX headphone prototype
 
 on:
-  push:
-    paths:
-      - 'driver/acx/**'
-      - 'driver/headphone/**'
-      - 'driver/speaker/**'
-      - 'driver/amp/amp-interface.h'
-      - 'driver/codec/codec-interface.h'
-      - 'driver/sofprobe.c'
-      - 'driver/sofprobe-ioctl.h'
-      - 'tools/test-audio-format.py'
-      - 'tools/test-acx-ring.py'
-      - 'tools/test-acx-packet-lifetime.py'
-      - 'tools/test-amp-hold.py'
-      - 'tools/test-headphone-pipeline.py'
-      - 'tools/test-pcm-guard.py'
-      - 'tools/test-microphone-pipeline.py'
-      - 'tools/test-speaker-check.py'
-      - '.github/workflows/build-headphone.yml'
   workflow_dispatch:
 
 permissions:

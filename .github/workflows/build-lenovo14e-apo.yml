@@ -1,0 +1,34 @@
+name: Build Lenovo 14e speaker effects
+on:
+  push:
+    paths: ['apo/**', 'audio-dsp/**', '.github/workflows/build-lenovo14e-apo.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dsp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r audio-dsp/tests/requirements.txt
+      - run: cmake -S audio-dsp -B build/dsp -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build/dsp
+      - run: ctest --test-dir build/dsp --output-on-failure
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S apo -B build/apo -A x64
+      - run: cmake --build build/apo --config Release
+      - shell: pwsh
+        run: |
+          & ./build/apo/Release/lenovo14e-apo-probe.exe ./build/apo/Release/lenovo14eapo.dll
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item apo/install.ps1 build/apo/Release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lenovo14e-apo-development-preview
+          path: |
+            build/apo/Release/lenovo14eapo.dll
+            build/apo/Release/lenovo14e-apo-probe.exe
+            build/apo/Release/install.ps1

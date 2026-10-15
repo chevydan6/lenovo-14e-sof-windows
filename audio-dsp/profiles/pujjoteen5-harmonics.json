@@ -1,0 +1,11 @@
+{
+  "gain_db": -24.95967141095127,
+  "cutoff_hz": 171.94388253377176,
+  "level_knee_dbfs": -44.64026146089225,
+  "power": 0.5155301452130239,
+  "saturation_power": 0.9329957548070943,
+  "rms_error_db": 1.398155843536943,
+  "max_error_db": 3.640985186459986,
+  "points": 24,
+  "status": "Independent third-harmonic magnitude model; not recovered vendor algorithm"
+}

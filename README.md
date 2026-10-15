@@ -1,86 +1,69 @@
-# Intel SOF Audio Driver for Windows
+# Lenovo 14e Gen 3 Intel SOF Audio for Windows
 
-Open-source Windows host-driver development for Intel Sound Open Firmware (SOF).
-The first target is an Intel N100 laptop with a PCI audio controller at
-`8086:54c8` and an I2C Realtek RT5682 codec (`ACPI\10EC5682`). This repository
-contains diagnostic tooling and experimental ACX audio drivers.
+A Lenovo 14e Chromebook Gen 3 / Google Pujjoteen-specific derivative of
+[Intel SOF for Windows](https://github.com/chevydan6/intel-sof-windows),
+combining the experimental Intel SOF host drivers with independent open-source
+speaker processing for Windows. This is a community project, not an official
+Lenovo, Intel, Google or Waves driver.
 
-An opt-in [right-speaker normal-use trial](docs/n100-right-speaker-trial.md)
-supports ordinary Windows applications without a timed cutoff or manual arming.
-It retains the amplifier renewal watchdog, switches off on stream stop or
-sustained silence, and keeps the damaged/imbalanced left channel silent.
-The user confirmed clear sound and cool speaker areas in earlier two-, eight-
-and thirty-second tests. Broader normal-use and sleep/resume validation remain
-in progress; the speaker trial does not yet integrate headphone-jack switching.
-Left-side imbalance also reproduces in Fedora; its hardware cause remains
-unresolved. See the [thermal investigation](docs/n100-amplifier-thermal-review.md).
+## Target
 
-A separate headphone driver supports Windows application playback on the target.
-Stream start/stop, repeated playback, physical jack removal/reinsertion, Windows
-volume/mute, and acoustic tone capture have been verified. The RT5682 output
-powers down when its stream stops. A fixed -9.54 dB PCM ceiling permits
-14.54 dB more output than the original headphone build, with Windows volume
-available below that ceiling.
-See [headphone playback and distortion checks](docs/n100-headphone-playback.md).
-The built-in microphones support [bounded diagnostic recording](docs/n100-microphone-capture.md),
-but do not yet expose a Windows microphone endpoint.
-Earlier successful speaker DMA tests are historical evidence, not a statement
-that the current build enables speakers. General power recovery remains unfinished.
+- Lenovo 14e **Chromebook Gen 3**, Google Pujjoteen family, Intel Alder Lake-N.
+- Intel PCI audio controller `8086:54C8`, RT5682 codec, MAX98357/98360-family
+  speaker path as documented in the hardware investigation.
+- Windows 11 x64; the effects preview accepts 48 kHz stereo float32.
 
-The development probe builds with the WDK in Windows CI and its generated INF
-passes a separate x64 `InfVerif /w` check. It read the controller's resources,
-[capability chain](docs/n100-capability-chain-test.md), and
-[DSP status](docs/n100-dsp-status-test.md). Its
-[on-demand snapshot](docs/n100-live-snapshot-test.md) works through a device
-interface. A guarded, opt-in [core-0 power test](docs/n100-core0-power-test.md)
-received hardware acknowledgment and restored the powered-off baseline.
-The hardware-test reports record installation and rollback state for each test.
+Other Lenovo 14e generations, other Chromebooks and other SOF topologies have
+not been validated. The installer checks the machine model and selects only
+the supported SOF speaker endpoint. An explicit VM-only test option exists.
 
-The [firmware boot path](docs/n100-firmware-boot-plan.md) is mapped, the [IPC3 firmware payload can be staged in DMA memory](docs/n100-ipc3-staging-test.md), the [code-loader](docs/n100-stream-setup-test.md) and [ICCMAX capture](docs/n100-capture-setup-test.md) streams both accepted guarded setup and restoration, the [capture RUN/STOP test](docs/n100-capture-dma-test.md) returned cleanly, the [DSP ROM acknowledged entry](docs/n100-rom-entry-test.md), the [firmware reached its entered state](docs/n100-firmware-dma-test.md), the [IPC3 firmware-ready notification arrived](docs/n100-ipc3-ready-test.md), a [host IPC3 request received a valid reply](docs/n100-ipc3-transaction-test.md), and a [managed DSP session handled a second request](docs/n100-ipc3-session-test.md).
+## Components
 
-The [ACX playback investigation](docs/n100-acx-playback-test.md) now records successful Windows format negotiation and a three-second WAV transfer (301 packets submitted and completed), after correcting packet-buffer alignment and preparing SOF before starting Windows audio services. Audible confirmation of that app test is pending; the earlier [hardware tone](docs/n100-speaker-tone-test.md) was heard. The [automatic startup work](docs/n100-acx-autostart-test.md) moves firmware and speaker setup into the driver and resets PCM between streams. Interrupt-driven IPC service, general topology support, and comprehensive power recovery remain unfinished.
+- `driver/`: inherited experimental ACX/KMDF controller, codec and amplifier
+  drivers, with their existing stream-stop and amplifier watchdog behavior.
+- `audio-dsp/`: MIT-licensed C engine with recovered numeric speaker EQ,
+  independently fitted bass response, bass dynamics, harmonic approximation
+  and a sample limiter. No Waves executable or proprietary firmware is included.
+- `apo/`: a Windows endpoint-effects APO DLL, native contract/playback probe,
+  and a reversible development installer attaching it to the speaker output.
 
-A public 0 dB stereo speaker build with both channels enabled is available as a
-[test-signed prerelease](https://github.com/chevydan6/intel-sof-windows/releases/tag/v0.1.0-rc.2).
-The right-only build is a separate workaround for the owner’s laptop.
-See [package contents and Microsoft signing](docs/driver-release-and-signing.md).
+The APO processes both channels. It introduces no channel mute. The separate
+right-only hardware workaround on the owner's laptop remains in its existing
+kernel driver. Installing the APO does not replace that driver or change its
+channel routing, headphones, microphone processing, boot policy or test mode.
 
-## Why a host driver is needed
+## Preview status
 
-SOF firmware runs on the audio DSP. A Windows host driver must claim the PCI
-controller, initialize the DSP, load compatible firmware and topology, exchange
-SOF IPC messages, manage DMA and power states, and expose audio streams through
-Windows audio interfaces. The Realtek codec is a separate I2C device that also
-needs a working path to the audio graph.
+Development in progress. The effects build and live installation evidence is
+recorded in [APO validation](docs/lenovo14e-apo-validation.md). Installation
+requires an elevated shell and temporarily restarts Windows audio services.
+The installer records the affected registry values for rollback, and refuses
+to silently replace an unrelated existing endpoint effect.
 
-## First target
+This is an installable development effects package, not a Microsoft-signed
+production driver bundle. Native driver signing and firmware redistribution
+remain separate requirements; see [upstream signing notes](docs/driver-release-and-signing.md).
 
-The initial target baseline reported Windows PnP problem code 28 for both
-`PCI\VEN_8086&DEV_54C8` and `ACPI\10EC5682`. Linux maps `54c8` to Alder Lake-N
-SOF (`HDA_ADL_N`) and defaults that platform to IPC3 with `sof-adl-n.ri`.
-See [hardware/n100-windows.json](hardware/n100-windows.json) and
-[docs/source-map.md](docs/source-map.md).
+## Build the speaker effects
 
-## Development order
+```sh
+cmake -S apo -B build/apo -G Ninja -DCMAKE_SYSTEM_NAME=Windows \
+  -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+  -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ -DCMAKE_BUILD_TYPE=Release
+cmake --build build/apo
+```
 
-1. Build a KMDF PCI probe that binds only to `8086:54c8`, reports
-   controller capabilities, verifies a guarded DSP power request, and unloads cleanly. **Done.**
-2. Add DSP boot and firmware-ready handshake using the Alder Lake-N Linux SOF
-   code as the hardware reference. Keep a known-good Windows restore path.
-   **Guarded session start, request, and stop verified on N100.**
-3. Add IPC3 request/reply handling, timeouts, and firmware trace collection.
-4. Bring up one simple playback path, then capture and codec controls through
-   Windows ACX audio circuits.
-5. Add suspend/resume, error recovery, validation, and driver signing for wider
-   use.
+Windows MSVC builds use the installed Windows SDK. MinGW builds use minimal
+API declarations checked against the SDK ABI. The APO statically includes the
+DSP core and needs no separate DSP DLL or third-party runtime installation.
 
-Run `tools/collect-hardware.ps1` on the Windows target to refresh the PnP
-baseline. The Windows Driver Kit is not installed on the target, so initial
-builds use Windows CI. Test-signed builds require a controlled test-signing
-setup on the target for each hardware test.
+See [speaker effects](apo/README.md) for install, bypass/rollback, and test
+commands. See [the inherited project overview](docs/upstream-readme.md) for
+the kernel driver history and remaining hardware limitations.
 
 ## Licensing
 
-This project is GPL-2.0-only so that appropriately attributed Linux SOF host
-code can be adapted where useful. Third-party firmware and Windows Driver Kit
-components keep their own licenses; neither is bundled here.
+Inherited host-driver code remains GPL-2.0-only. The independent DSP engine
+and APO integration are MIT licensed within their respective directories.
+Windows API declarations follow the documented Windows ABI. Third-party
+firmware and SDK components retain their own licenses and are not bundled.

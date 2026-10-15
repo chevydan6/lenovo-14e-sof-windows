@@ -1,0 +1,40 @@
+{
+  "status": "Approximate steady-tone dynamics fit; not complete vendor dynamics",
+  "crossovers_hz": [
+    150,
+    500
+  ],
+  "parameters": [
+    -40.48865813294258,
+    1.9673208847781285,
+    24.928072879225056,
+    -3.0996282415462684,
+    -17.660562197325863,
+    4.999999968560543,
+    58.48502474579114,
+    0.8466222229393611,
+    0.26883237644472935
+  ],
+  "attack_ms": 5,
+  "release_ms": 100,
+  "timing_status": "Initial timing values; measured transient fitting pending",
+  "board_volume_db": {
+    "25": -42.8,
+    "50": -23.5,
+    "75": -13.5,
+    "100": -9
+  },
+  "input_gain_reference_volume_db": -23.5,
+  "metrics": {
+    "training": {
+      "rms_db": 0.32740728092050997,
+      "max_abs_db": 0.7497951873305766,
+      "points": 21
+    },
+    "held_out_volume75": {
+      "rms_db": 0.2339343666403125,
+      "max_abs_db": 0.37389523573034467,
+      "points": 11
+    }
+  }
+}

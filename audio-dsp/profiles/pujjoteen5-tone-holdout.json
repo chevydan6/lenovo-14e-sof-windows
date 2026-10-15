@@ -1,0 +1,68 @@
+[
+  {
+    "volume": 75,
+    "frequency": 80,
+    "input_dbfs": -48,
+    "output_fund_dbfs": -48.850458372697496
+  },
+  {
+    "volume": 75,
+    "frequency": 80,
+    "input_dbfs": -36,
+    "output_fund_dbfs": -40.85110792115701
+  },
+  {
+    "volume": 75,
+    "frequency": 80,
+    "input_dbfs": -24,
+    "output_fund_dbfs": -33.73203509648775
+  },
+  {
+    "volume": 75,
+    "frequency": 120,
+    "input_dbfs": -48,
+    "output_fund_dbfs": -34.4407698886837
+  },
+  {
+    "volume": 75,
+    "frequency": 120,
+    "input_dbfs": -36,
+    "output_fund_dbfs": -27.281430327377038
+  },
+  {
+    "volume": 75,
+    "frequency": 120,
+    "input_dbfs": -24,
+    "output_fund_dbfs": -20.570243725663406
+  },
+  {
+    "volume": 75,
+    "frequency": 200,
+    "input_dbfs": -48,
+    "output_fund_dbfs": -28.662584392995075
+  },
+  {
+    "volume": 75,
+    "frequency": 200,
+    "input_dbfs": -36,
+    "output_fund_dbfs": -22.05600904199594
+  },
+  {
+    "volume": 75,
+    "frequency": 200,
+    "input_dbfs": -24,
+    "output_fund_dbfs": -16.84772785359089
+  },
+  {
+    "volume": 75,
+    "frequency": 1000,
+    "input_dbfs": -36,
+    "output_fund_dbfs": -52.01629910772971
+  },
+  {
+    "volume": 75,
+    "frequency": 1000,
+    "input_dbfs": -24,
+    "output_fund_dbfs": -39.39915861142626
+  }
+]
