@@ -1,10 +1,15 @@
 # Lenovo 14e Gen 3 Intel SOF Audio for Windows
 
-A Lenovo 14e Chromebook Gen 3 / Google Pujjoteen-specific derivative of
+A Lenovo 14e Chromebook Gen 3 / Google Pujjoteen-specific source-code fork of
 [Intel SOF for Windows](https://github.com/chevydan6/intel-sof-windows),
 combining the experimental Intel SOF host drivers with independent open-source
 speaker processing for Windows. This is a community project, not an official
 Lenovo, Intel, Google or Waves driver.
+
+The upstream codebase is `chevydan6/intel-sof-windows`; this repository retains
+its Git history and adds Lenovo-specific integration and speaker processing.
+It is currently hosted as a standalone GitHub repository, so GitHub does not
+display a formal “forked from” relationship.
 
 ## Target
 
