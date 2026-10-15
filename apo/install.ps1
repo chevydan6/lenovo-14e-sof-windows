@@ -33,6 +33,41 @@ function Restore-Values($values) {
 }
 $id=[Security.Principal.WindowsIdentity]::GetCurrent()
 if(-not (New-Object Security.Principal.WindowsPrincipal($id)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Run this installer in an elevated PowerShell window.'}
+# MMDevices effect stores are SYSTEM-owned. Use a short-lived scheduled task
+# rather than changing ownership or permanently broadening their ACLs.
+if($id.User.Value -ne 'S-1-5-18'){
+ $stage=Join-Path $root 'Installer'
+ New-Item $stage -ItemType Directory -Force | Out-Null
+ foreach($name in @('install.ps1','lenovo14eapo.dll','lenovo14e-apo-probe.exe')){
+  $source=Join-Path $PSScriptRoot $name;$dest=Join-Path $stage $name
+  if([IO.Path]::GetFullPath($source) -ne [IO.Path]::GetFullPath($dest)){Copy-Item $source $dest -Force}
+ }
+ $flags=''
+ if($VirtualMachine){$flags+=' -VirtualMachine'}
+ if($Rollback){$flags+=' -Rollback'}
+ if($NoRestart){$flags+=' -NoRestart'}
+ $log=Join-Path $stage 'operation.log'
+ $runner=Join-Path $stage 'run-operation.ps1'
+ $escaped=(Join-Path $stage 'install.ps1').Replace("'","''")
+ $escapedLog=$log.Replace("'","''")
+ $body="`$ErrorActionPreference='Stop'`ntry { & '$escaped'$flags *>&1 | Out-File '$escapedLog'; exit 0 } catch { `$_ | Out-String | Add-Content '$escapedLog'; exit 1 }"
+ Set-Content $runner $body -Encoding UTF8
+ $task='Lenovo14eAudio-'+[Guid]::NewGuid().ToString('N')
+ $action=New-ScheduledTaskAction -Execute "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$runner`""
+ $principal=New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
+ try {
+  Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force | Out-Null
+  Start-ScheduledTask -TaskName $task
+  $deadline=(Get-Date).AddSeconds(90)
+  do { Start-Sleep -Milliseconds 250; $state=(Get-ScheduledTask -TaskName $task).State; $info=Get-ScheduledTaskInfo -TaskName $task } while(($state -eq 'Running' -or $info.LastRunTime.Year -lt 2000) -and (Get-Date) -lt $deadline)
+  if((Get-Date) -ge $deadline){throw 'The SYSTEM installer task timed out; inspect its operation log.'}
+  if(Test-Path $log){Get-Content $log}
+  if($info.LastTaskResult -ne 0){throw "The SYSTEM installer returned $($info.LastTaskResult). See $log"}
+ } finally {
+  if(Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue){Unregister-ScheduledTask -TaskName $task -Confirm:$false}
+ }
+ return
+}
 if($Rollback){
  if(-not(Test-Path $backup)){throw 'No recorded installation to roll back.'}
  $record=Get-Content $backup -Raw | ConvertFrom-Json

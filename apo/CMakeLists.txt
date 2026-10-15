@@ -20,3 +20,7 @@ target_link_libraries(lenovo14e-apo-probe PRIVATE ole32 uuid)
 if(MINGW)
  target_link_options(lenovo14e-apo-probe PRIVATE -municode -static -static-libgcc -static-libstdc++)
 endif()
+
+if(MSVC)
+ set_property(TARGET lenovo14eapo lenovo14e-apo-probe PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
