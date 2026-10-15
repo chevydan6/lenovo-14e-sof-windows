@@ -134,11 +134,11 @@ public:
  HRESULT STDMETHODCALLTYPE CreateInstance(IUnknown* outer,REFIID iid,void** p) override{if(!p)return E_POINTER;*p=nullptr;if(outer)return CLASS_E_NOAGGREGATION;auto obj=new(std::nothrow) LenovoApo;if(!obj)return E_OUTOFMEMORY;HRESULT hr=obj->QueryInterface(iid,p);obj->Release();return hr;}
  HRESULT STDMETHODCALLTYPE LockServer(BOOL lock) override{if(lock)InterlockedIncrement(&serverLocks);else InterlockedDecrement(&serverLocks);return S_OK;}
 };
-extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** p){if(!same(clsid,kClsid))return CLASS_E_CLASSNOTAVAILABLE;auto f=new(std::nothrow) Factory;if(!f)return E_OUTOFMEMORY;HRESULT hr=f->QueryInterface(iid,p);f->Release();return hr;}
-extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow(){return objects||serverLocks?S_FALSE:S_OK;}
+STDAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** p){if(!same(clsid,kClsid))return CLASS_E_CLASSNOTAVAILABLE;auto f=new(std::nothrow) Factory;if(!f)return E_OUTOFMEMORY;HRESULT hr=f->QueryInterface(iid,p);f->Release();return hr;}
+STDAPI DllCanUnloadNow(){return objects||serverLocks?S_FALSE:S_OK;}
 BOOL WINAPI DllMain(HINSTANCE m,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){moduleHandle=m;DisableThreadLibraryCalls(m);}return TRUE;}
 static LSTATUS str(HKEY key,const WCHAR* name,const WCHAR* value){return RegSetValueExW(key,name,0,REG_SZ,reinterpret_cast<const BYTE*>(value),static_cast<DWORD>((wcslen(value)+1)*sizeof(WCHAR)));}
-extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer(){
+STDAPI DllRegisterServer(){
  WCHAR path[MAX_PATH];if(!GetModuleFileNameW(moduleHandle,path,MAX_PATH))return HRESULT_FROM_WIN32(GetLastError());
  WCHAR key[512];HKEY h;swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls\\InprocServer32",kClsidText);
  LSTATUS e=RegCreateKeyExW(HKEY_LOCAL_MACHINE,key,0,nullptr,0,KEY_WRITE,nullptr,&h,nullptr);if(e)return HRESULT_FROM_WIN32(e);
@@ -152,4 +152,4 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer(){
  if(!e)e=RegSetValueExW(h,L"APOInterface0",0,REG_SZ,reinterpret_cast<const BYTE*>(L"{FD7F2B29-24D0-4B5C-B177-592C39F9CA10}"),39*sizeof(WCHAR));
  RegCloseKey(h);return HRESULT_FROM_WIN32(e);
 }
-extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServer(){WCHAR key[512];swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);swprintf(key,512,L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Audio\\AudioProcessingObjects\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);return S_OK;}
+STDAPI DllUnregisterServer(){WCHAR key[512];swprintf(key,512,L"SOFTWARE\\Classes\\CLSID\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);swprintf(key,512,L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Audio\\AudioProcessingObjects\\%ls",kClsidText);RegDeleteTreeW(HKEY_LOCAL_MACHINE,key);return S_OK;}
