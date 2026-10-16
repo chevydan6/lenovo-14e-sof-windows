@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cwchar>
 #include <algorithm>
+extern "C" { Telemetry Lenovo14eApoTelemetry{}; }
 static HMODULE moduleHandle;
 static volatile LONG objects=0,serverLocks=0;
 static bool same(REFGUID a,REFGUID b) {return !!IsEqualGUID(a,b);}
@@ -14,7 +15,7 @@ static void properties(APO_REG_PROPERTIES* p) {
  std::memset(p,0,sizeof(*p));p->clsid=kClsid;p->Flags=static_cast<APO_FLAG>(15);
  std::wcscpy(p->szFriendlyName,L"Lenovo 14e Gen 3 Speaker Processing");
  std::wcscpy(p->szCopyrightInfo,L"Independent open-source speaker processing; MIT");
- p->u32MajorVersion=0;p->u32MinorVersion=3;
+ p->u32MajorVersion=1;p->u32MinorVersion=3;
  p->u32MinInputConnections=p->u32MaxInputConnections=1;
  p->u32MinOutputConnections=p->u32MaxOutputConnections=1;
  p->u32MaxInstances=0xffffffff;p->u32NumAPOInterfaces=1;p->iidAPOInterfaceList[0]=kApo;
@@ -28,61 +29,62 @@ static bool format(IAudioMediaType* t) {
 class LenovoApo final : public IAudioProcessingObject,public IAudioProcessingObjectRT,
  public IAudioProcessingObjectConfiguration,public IAudioSystemEffects2 {
  volatile LONG references=1;
+ class InnerUnknown final : public IUnknown {
+  LenovoApo* owner;
+ public:
+  explicit InnerUnknown(LenovoApo* p):owner(p){}
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** p) override {return owner->NonDelegatingQueryInterface(iid,p);}
+  ULONG STDMETHODCALLTYPE AddRef() override {return owner->NonDelegatingAddRef();}
+  ULONG STDMETHODCALLTYPE Release() override {return owner->NonDelegatingRelease();}
+ } innerUnknown{this};
+ IUnknown* controllingUnknown;
  bool initialized=false,locked=false,pinned=false;
  UINT32 maximumFrames=0;
  cb_state state{};
- HANDLE mapping=nullptr;
- Telemetry* telemetry=nullptr;
- void connectTelemetry() {
-  auto path=telemetryPath();
-  HANDLE file=CreateFileW(path.c_str(),GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
-  if(file!=INVALID_HANDLE_VALUE){mapping=CreateFileMappingW(file,nullptr,PAGE_READWRITE,0,sizeof(Telemetry),nullptr);CloseHandle(file);}
-  if(!mapping){
-   PSECURITY_DESCRIPTOR sd=nullptr;
-   ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;LS)(A;;GR;;;AU)",SDDL_REVISION_1,&sd,nullptr);
-   SECURITY_ATTRIBUTES sa{sizeof(sa),sd,FALSE};
-   mapping=CreateFileMappingW(INVALID_HANDLE_VALUE,sd?&sa:nullptr,PAGE_READWRITE,0,sizeof(Telemetry),kTelemetryName);
-   if(sd)LocalFree(sd);
-  }
-  if(mapping)telemetry=static_cast<Telemetry*>(MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(Telemetry)));
-  if(telemetry)VirtualLock(telemetry,sizeof(Telemetry));
- }
+ Telemetry* telemetry=&Lenovo14eApoTelemetry;
  HRESULT failed(HRESULT hr) {if(telemetry){InterlockedIncrement64(&telemetry->errors);InterlockedExchange(&telemetry->lastHr,hr);}return hr;}
 public:
- LenovoApo(){InterlockedIncrement(&objects);connectTelemetry();}
- ~LenovoApo(){if(pinned)VirtualUnlock(&state,sizeof(state));if(telemetry){VirtualUnlock(telemetry,sizeof(Telemetry));UnmapViewOfFile(telemetry);}if(mapping)CloseHandle(mapping);InterlockedDecrement(&objects);}
- HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** pp) override {
+ explicit LenovoApo(IUnknown* outer=nullptr):controllingUnknown(outer?outer:&innerUnknown){InterlockedIncrement(&objects);InterlockedIncrement(&telemetry->created);}
+ ~LenovoApo(){if(pinned)VirtualUnlock(&state,sizeof(state));InterlockedDecrement(&objects); }
+ HRESULT NonDelegatingQueryInterface(REFIID iid,void** pp) {
   if(!pp)return E_POINTER;*pp=nullptr;
-  if(same(iid,IID_IUnknown)||same(iid,kApo))*pp=static_cast<IAudioProcessingObject*>(this);
+  if(same(iid,IID_IUnknown)){*pp=&innerUnknown;NonDelegatingAddRef();return S_OK;}
+  if(same(iid,kApo))*pp=static_cast<IAudioProcessingObject*>(this);
   else if(same(iid,kRt))*pp=static_cast<IAudioProcessingObjectRT*>(this);
   else if(same(iid,kConfig))*pp=static_cast<IAudioProcessingObjectConfiguration*>(this);
   else if(same(iid,kEffects)||same(iid,kEffects2))*pp=static_cast<IAudioSystemEffects2*>(this);
   else return E_NOINTERFACE;
   AddRef();return S_OK;
  }
- ULONG STDMETHODCALLTYPE AddRef() override {return InterlockedIncrement(&references);}
- ULONG STDMETHODCALLTYPE Release() override {LONG n=InterlockedDecrement(&references);if(!n)delete this;return n;}
+ ULONG NonDelegatingAddRef(){return InterlockedIncrement(&references);}
+ ULONG NonDelegatingRelease(){LONG n=InterlockedDecrement(&references);if(!n)delete this;return n;}
+ HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** pp) override {return controllingUnknown->QueryInterface(iid,pp);}
+ ULONG STDMETHODCALLTYPE AddRef() override {return controllingUnknown->AddRef();}
+ ULONG STDMETHODCALLTYPE Release() override {return controllingUnknown->Release();}
  HRESULT STDMETHODCALLTYPE Initialize(UINT32 bytes,BYTE* data) override {
   if(initialized)return static_cast<HRESULT>(0x887d0001);
   if(bytes && (!data || bytes<sizeof(APOInitBaseStruct)))return failed(E_INVALIDARG);
   if(bytes && !same(reinterpret_cast<APOInitBaseStruct*>(data)->clsid,kClsid))return failed(static_cast<HRESULT>(0x887d0004));
   if(telemetry){InterlockedIncrement64(&telemetry->initialized);InterlockedExchange(&telemetry->hostPid,GetCurrentProcessId());}
   cb_config c;cb_measured_config(&c,50);
-  // EFX receives Windows' already volume-scaled samples. Remove the fixed
-  // 50%-capture reference, NOT the user's actual volume attenuation.
+  // Remove the fixed capture calibration reference once. This default-mode
+  // effect does not sample or change Windows' separate endpoint volume.
   c.input_gain_db=23.5;
-  // Preview headroom, independent of the retained kernel amplifier watchdog.
-  c.output_gain_db-=6;c.limiter_ceiling_db=-6;
+  // Retain the calibrated output gain and a 1 dBFS limiter margin.
+  // The kernel amplifier watchdog remains independent.
+  c.limiter_ceiling_db=-1;
   if(cb_init(&state,&c))return failed(E_FAIL);
   initialized=true;return S_OK;
  }
  HRESULT STDMETHODCALLTYPE Reset() override {if(locked)return kLocked;cb_reset(&state);return S_OK;}
  HRESULT STDMETHODCALLTYPE GetLatency(HNSTIME* t) override {if(!t)return E_POINTER;*t=30000;return S_OK;}
  HRESULT STDMETHODCALLTYPE GetRegistrationProperties(APO_REG_PROPERTIES** p) override {
+  InterlockedIncrement(&telemetry->registrationQueries);
   if(!p)return E_POINTER;*p=static_cast<APO_REG_PROPERTIES*>(CoTaskMemAlloc(sizeof(APO_REG_PROPERTIES)));
   if(!*p)return E_OUTOFMEMORY;properties(*p);return S_OK;
  }
  HRESULT support(IAudioMediaType* opposite,IAudioMediaType* requested,IAudioMediaType** supported) {
+  InterlockedIncrement(&telemetry->formatQueries);
   if(!supported)return E_POINTER;*supported=nullptr;
   if(locked)return kLocked;
   if(!format(requested)||(opposite&&!format(opposite)))return kFormatError;
@@ -93,7 +95,11 @@ public:
  HRESULT STDMETHODCALLTYPE GetInputChannelCount(UINT32* p) override{if(!p)return E_POINTER;*p=2;return S_OK;}
  HRESULT STDMETHODCALLTYPE GetEffectsList(LPGUID* ids,UINT* count,HANDLE) override {
   if(!ids||!count)return E_POINTER;*ids=nullptr;*count=0;
-  auto p=static_cast<GUID*>(CoTaskMemAlloc(sizeof(GUID)));if(!p)return E_OUTOFMEMORY;*p=kClsid;*ids=p;*count=1;return S_OK;
+  InterlockedIncrement(&telemetry->effectQueries);
+  auto p=static_cast<GUID*>(CoTaskMemAlloc(3*sizeof(GUID)));if(!p)return E_OUTOFMEMORY;
+  GUID eq={0x6f64adc3,0x8211,0x11e2,{0x8c,0x70,0x2c,0x27,0xd7,0xf0,0x01,0xfa}};
+  p[0]=eq;p[1]=eq;p[1].Data1=0x6f64adc5;p[2]=eq;p[2].Data1=0x6f64adce;
+  *ids=p;*count=3;return S_OK;
  }
  HRESULT STDMETHODCALLTYPE LockForProcess(UINT32 ni,APO_CONNECTION_DESCRIPTOR** in,UINT32 no,APO_CONNECTION_DESCRIPTOR** out) override {
   if(locked)return kLocked;if(!initialized)return failed(static_cast<HRESULT>(0x887d0002));
@@ -137,12 +143,12 @@ public:
  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** p) override{if(!p)return E_POINTER;*p=nullptr;if(!same(iid,IID_IUnknown)&&!same(iid,IID_IClassFactory))return E_NOINTERFACE;*p=this;AddRef();return S_OK;}
  ULONG STDMETHODCALLTYPE AddRef() override{return InterlockedIncrement(&refs);}
  ULONG STDMETHODCALLTYPE Release() override{LONG n=InterlockedDecrement(&refs);if(!n)delete this;return n;}
- HRESULT STDMETHODCALLTYPE CreateInstance(IUnknown* outer,REFIID iid,void** p) override{if(!p)return E_POINTER;*p=nullptr;if(outer)return CLASS_E_NOAGGREGATION;auto obj=new(std::nothrow) LenovoApo;if(!obj)return E_OUTOFMEMORY;HRESULT hr=obj->QueryInterface(iid,p);obj->Release();return hr;}
+ HRESULT STDMETHODCALLTYPE CreateInstance(IUnknown* outer,REFIID iid,void** p) override{if(!p)return E_POINTER;*p=nullptr;if(outer&&!same(iid,IID_IUnknown))return CLASS_E_NOAGGREGATION;auto obj=new(std::nothrow) LenovoApo(outer);if(!obj)return E_OUTOFMEMORY;HRESULT hr=obj->NonDelegatingQueryInterface(iid,p);obj->NonDelegatingRelease();return hr;}
  HRESULT STDMETHODCALLTYPE LockServer(BOOL lock) override{if(lock)InterlockedIncrement(&serverLocks);else InterlockedDecrement(&serverLocks);return S_OK;}
 };
-STDAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** p){if(!same(clsid,kClsid))return CLASS_E_CLASSNOTAVAILABLE;auto f=new(std::nothrow) Factory;if(!f)return E_OUTOFMEMORY;HRESULT hr=f->QueryInterface(iid,p);f->Release();return hr;}
+STDAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** p){InterlockedIncrement(&Lenovo14eApoTelemetry.registrationQueries);if(!same(clsid,kClsid))return CLASS_E_CLASSNOTAVAILABLE;auto f=new(std::nothrow) Factory;if(!f)return E_OUTOFMEMORY;HRESULT hr=f->QueryInterface(iid,p);f->Release();return hr;}
 STDAPI DllCanUnloadNow(){return objects||serverLocks?S_FALSE:S_OK;}
-BOOL WINAPI DllMain(HINSTANCE m,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){moduleHandle=m;DisableThreadLibraryCalls(m);}return TRUE;}
+BOOL WINAPI DllMain(HINSTANCE m,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){moduleHandle=m;InterlockedExchange(&Lenovo14eApoTelemetry.hostPid,GetCurrentProcessId());DisableThreadLibraryCalls(m);}return TRUE;}
 static LSTATUS str(HKEY key,const WCHAR* name,const WCHAR* value){return RegSetValueExW(key,name,0,REG_SZ,reinterpret_cast<const BYTE*>(value),static_cast<DWORD>((wcslen(value)+1)*sizeof(WCHAR)));}
 STDAPI DllRegisterServer(){
  HMODULE self=moduleHandle;GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,reinterpret_cast<LPCWSTR>(&DllRegisterServer),&self);
@@ -155,7 +161,7 @@ STDAPI DllRegisterServer(){
  e=str(h,L"FriendlyName",L"Lenovo 14e Gen 3 Speaker Processing");
  if(!e)e=str(h,L"Copyright",L"Independent open-source speaker processing; MIT");
  const WCHAR* names[]={L"MajorVersion",L"MinorVersion",L"Flags",L"MinInputConnections",L"MaxInputConnections",L"MinOutputConnections",L"MaxOutputConnections",L"MaxInstances",L"NumAPOInterfaces"};
- DWORD values[]={0,3,15,1,1,1,1,0xffffffff,1};
+ DWORD values[]={1,3,15,1,1,1,1,0xffffffff,1};
  for(unsigned i=0;i<9&&!e;++i)e=RegSetValueExW(h,names[i],0,REG_DWORD,reinterpret_cast<const BYTE*>(&values[i]),sizeof(DWORD));
  if(!e)e=RegSetValueExW(h,L"APOInterface0",0,REG_SZ,reinterpret_cast<const BYTE*>(L"{FD7F2B29-24D0-4B5C-B177-592C39F9CA10}"),39*sizeof(WCHAR));
  RegCloseKey(h);return HRESULT_FROM_WIN32(e);

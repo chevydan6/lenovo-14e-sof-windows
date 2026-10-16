@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -S apo -B build/apo -A x64
+      - run: cmake -S apo -B build/apo -A x64 -DLENOVO14E_APO_INTEGRITYCHECK=OFF
       - run: cmake --build build/apo --config Release
       - shell: pwsh
         run: |
@@ -36,6 +36,11 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path apo/install.ps1),[ref]$tokens,[ref]$parseErrors) | Out-Null
           if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
           Copy-Item apo/install.ps1 build/apo/Release/
+      # Hosted runners cannot load a self-signed integrity-check DLL. Run
+      # contracts above, then restore the required flag for deployment.
+      # The deployment artifact must be signed before it can be installed.
+      - run: cmake -S apo -B build/apo -DLENOVO14E_APO_INTEGRITYCHECK=ON
+      - run: cmake --build build/apo --config Release
       - uses: actions/upload-artifact@v4
         with:
           name: lenovo14e-apo-development-preview

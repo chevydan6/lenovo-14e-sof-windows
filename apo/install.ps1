@@ -1,32 +1,20 @@
 # SPDX-License-Identifier: MIT
 [CmdletBinding()]
-param([switch]$VirtualMachine,[switch]$Rollback,[switch]$NoRestart)
+param([switch]$VirtualMachine,[switch]$Rollback,[switch]$NoRestart,[switch]$VerifyPlayback)
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $root=Join-Path $env:ProgramFiles 'Lenovo14eAudio'
+$apoDll=Join-Path ([Environment]::GetFolderPath('System')) 'lenovo14eapo.dll'
 $backup=Join-Path $env:ProgramData 'Lenovo14eAudio\installation.json'
 $clsid='{C324C041-34EC-4D9A-9CC8-B06514E00001}'
-$efx='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7'
+$effect='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},6'
 $association='{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},0'
-$modes='{d3993a3f-99c2-4402-b5ec-a92a0367664b},7'
+$modes='{d3993a3f-99c2-4402-b5ec-a92a0367664b},6'
 $disable='{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5'
-function Prepare-Telemetry {
- $file=Join-Path (Split-Path $backup) 'telemetry.bin'
- if(-not(Test-Path $file)){[IO.File]::WriteAllBytes($file,(New-Object byte[] 64))}
- $acl=[Security.AccessControl.FileSecurity]::new()
- $acl.SetAccessRuleProtection($true,$false)
- foreach($entry in @(@('S-1-5-18','FullControl'),@('S-1-5-32-544','FullControl'),@('S-1-5-19','Read,Write'),@('S-1-5-12','Read,Write'),@('S-1-5-32-545','Read'))){
-  $sid=[Security.Principal.SecurityIdentifier]::new($entry[0])
-  $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]$entry[1],[Security.AccessControl.AccessControlType]::Allow))
- }
- Set-Acl $file $acl
- & "$env:WINDIR\System32\icacls.exe" $file /setintegritylevel L | Out-Null
- if($LASTEXITCODE){throw 'Could not prepare the diagnostic counter file.'}
-}
 function Register-Apo([bool]$Remove) {
  $arguments=@('/s')
  if($Remove){$arguments+='/u'}
- $arguments+=('"{0}"' -f (Join-Path $root 'lenovo14eapo.dll'))
+ $arguments+=('"{0}"' -f $apoDll)
  $process=Start-Process -FilePath "$env:WINDIR\System32\regsvr32.exe" -ArgumentList $arguments -Wait -PassThru
  if($process.ExitCode -ne 0){throw "APO registration tool returned exit code $($process.ExitCode)."}
 }
@@ -74,6 +62,8 @@ function Restore-Values($values) {
 }
 $id=[Security.Principal.WindowsIdentity]::GetCurrent()
 if(-not (New-Object Security.Principal.WindowsPrincipal($id)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Run this installer in an elevated PowerShell window.'}
+if(-not [Environment]::Is64BitProcess){throw 'Run this installer in 64-bit PowerShell.'}
+if($NoRestart){throw 'Installing or removing the system APO requires an audio service restart; omit -NoRestart.'}
 # MMDevices effect stores are SYSTEM-owned. Use a short-lived installer service
 # rather than changing ownership or permanently broadening their ACLs.
 if($id.User.Value -ne 'S-1-5-18'){
@@ -87,6 +77,7 @@ if($id.User.Value -ne 'S-1-5-18'){
  if($VirtualMachine){$flags+=' -VirtualMachine'}
  if($Rollback){$flags+=' -Rollback'}
  if($NoRestart){$flags+=' -NoRestart'}
+ if($VerifyPlayback){$flags+=' -VerifyPlayback'}
  $operation='Lenovo14eAudio-'+[Guid]::NewGuid().ToString('N')
  $log=Join-Path $stage ($operation+'.log')
  $runner=Join-Path $stage ($operation+'.ps1')
@@ -102,11 +93,14 @@ if($id.User.Value -ne 'S-1-5-18'){
 if($Rollback){
  if(-not(Test-Path $backup)){throw 'No recorded installation to roll back.'}
  $record=Get-Content $backup -Raw | ConvertFrom-Json
- $now=Get-ItemPropertyValue $record.FxPath -Name $efx -ErrorAction SilentlyContinue
+ if($record.BinaryPath -and (Test-Path $record.BinaryPath) -and ($record.BinaryPath -ne $apoDll -or (Get-FileHash $record.BinaryPath -Algorithm SHA256).Hash -ne $record.BinaryHash)){throw 'The installed APO file changed; preserve the installation record for manual recovery.'}
+ $effectName=if($record.EffectName){$record.EffectName}else{$effect}
+ $now=Get-ItemPropertyValue $record.FxPath -Name $effectName -ErrorAction SilentlyContinue
  if($now -and $now -ne $clsid){throw 'Another effect replaced this APO. Refusing to overwrite it during rollback.'}
  Use-EndpointWrite @($record.Values | ForEach-Object {$_.Path}) { Restore-Values $record.Values }
  Register-Apo $true
  Restart-Audio
+ if($record.BinaryPath -and (Test-Path $record.BinaryPath)){Remove-Item -LiteralPath $record.BinaryPath}
  Move-Item $backup ($backup+'.removed-'+(Get-Date -Format yyyyMMddHHmmss))
  Write-Output 'RESTORED: previous speaker effects. Kernel drivers were not changed.'
  return
@@ -128,27 +122,39 @@ $targets=@(Get-ChildItem $render | Where-Object {
  else{$state -eq 1 -and $adapter -match 'SOF.*speaker|Lenovo 14e.*Speaker'}
 })
 if($targets.Count -ne 1){throw "Expected one active supported speaker endpoint; found $($targets.Count)."}
-$target=$targets[0];$fx=$target.PSPath+'\FxProperties';$props=$target.PSPath+'\Properties'
-$values=@((Read-Value $fx $efx),(Read-Value $fx $modes),(Read-Value $fx $disable),(Read-Value $fx $association))
-# Refuse to silently replace an existing endpoint effect.
-$prior=$values[0];if($prior.Exists -and $prior.Value -and $prior.Value -ne $clsid){throw "The speaker already has an endpoint APO: $($prior.Value)."}
+$sourceDll=Join-Path $PSScriptRoot 'lenovo14eapo.dll'
+if((Get-AuthenticodeSignature $sourceDll).Status -ne 'Valid'){throw 'Sign the APO DLL with a trusted development certificate before installing it.'}
+$image=[IO.File]::ReadAllBytes($sourceDll)
+if($image.Length -lt 64){throw 'Invalid APO image.'}
+$pe=[BitConverter]::ToInt32($image,60)
+if($pe -lt 0 -or $pe+96 -gt $image.Length -or [BitConverter]::ToUInt32($image,$pe) -ne 0x4550 -or [BitConverter]::ToUInt16($image,$pe+4) -ne 0x8664 -or ([BitConverter]::ToUInt16($image,$pe+94) -band 0x80) -eq 0){throw 'The APO must be an x64 DLL built with the integrity-check flag.'}
+if(-not [Diagnostics.FileVersionInfo]::GetVersionInfo($sourceDll).FileVersion){throw 'The APO DLL needs a version resource for AudioDG activation.'}
+if(Test-Path $apoDll){throw "An existing system APO file must be rolled back before installation: $apoDll"}
+$target=$targets[0];$fx=$target.PSPath+'\FxProperties'
+$values=@((Read-Value $fx $effect),(Read-Value $fx $modes),(Read-Value $fx $disable),(Read-Value $fx $association))
+# Refuse to silently replace an existing mode effect.
+$prior=$values[0];if($prior.Exists -and $prior.Value -and $prior.Value -ne $clsid){throw "The speaker already has a mode APO: $($prior.Value)."}
 New-Item $root -ItemType Directory -Force | Out-Null
 New-Item (Split-Path $backup) -ItemType Directory -Force | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'lenovo14eapo.dll') $root -Force
+Copy-Item $sourceDll $root -Force
 Copy-Item (Join-Path $PSScriptRoot 'lenovo14e-apo-probe.exe') $root -Force
-$record=@{Endpoint=$target.PSChildName;FxPath=$fx;Values=$values;InstalledAt=(Get-Date).ToString('o');VirtualMachine=[bool]$VirtualMachine}
+$record=@{Endpoint=$target.PSChildName;FxPath=$fx;EffectName=$effect;Values=$values;BinaryPath=$apoDll;BinaryHash=(Get-FileHash $sourceDll -Algorithm SHA256).Hash;InstalledAt=(Get-Date).ToString('o');VirtualMachine=[bool]$VirtualMachine}
 $record | ConvertTo-Json -Depth 8 | Set-Content $backup -Encoding UTF8
 try {
- Prepare-Telemetry
+ Copy-Item $sourceDll $apoDll
  Register-Apo $false
  Use-EndpointWrite @($fx) {
  if(-not(Test-Path $fx)){New-Item $fx -Force | Out-Null}
  New-ItemProperty $fx -Name $association -Value '{00000000-0000-0000-0000-000000000000}' -PropertyType String -Force | Out-Null
- New-ItemProperty $fx -Name $efx -Value $clsid -PropertyType String -Force | Out-Null
+ New-ItemProperty $fx -Name $effect -Value $clsid -PropertyType String -Force | Out-Null
  New-ItemProperty $fx -Name $modes -Value @('{C18E2F7E-933D-4965-B7D1-1EEF228D2AF3}') -PropertyType MultiString -Force | Out-Null
  New-ItemProperty $fx -Name $disable -Value 0 -PropertyType DWord -Force | Out-Null
  }
  Restart-Audio
+ if($VerifyPlayback){
+  & (Join-Path $root 'lenovo14e-apo-probe.exe') --verify-render ('{0.0.0.00000000}.'+$target.PSChildName)
+  if($LASTEXITCODE){throw 'Live AudioDG DSP verification failed; restoring the previous effects.'}
+ }
  Write-Output ('INSTALLED: Lenovo 14e speaker APO on '+$target.PSChildName)
  Write-Output 'The kernel driver, amplifier watchdog, microphone and headphones were not modified.'
 }catch{
@@ -156,5 +162,6 @@ try {
  Register-Apo $true
  Remove-Item $backup -ErrorAction SilentlyContinue
  Restart-Audio
+ Remove-Item -LiteralPath $apoDll -ErrorAction SilentlyContinue
  throw
 }

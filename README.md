@@ -29,7 +29,7 @@ the supported SOF speaker endpoint. An explicit VM-only test option exists.
 - `audio-dsp/`: MIT-licensed C engine with recovered numeric speaker EQ,
   independently fitted bass response, bass dynamics, harmonic approximation
   and a sample limiter. No Waves executable or proprietary firmware is included.
-- `apo/`: a Windows endpoint-effects APO DLL, native contract/playback probe,
+- `apo/`: a Windows default-mode effects APO DLL, native contract/playback probe,
   and a reversible development installer attaching it to the speaker output.
 
 The APO processes both channels. It introduces no channel mute. The separate
@@ -37,16 +37,18 @@ right-only hardware workaround on the owner's laptop remains in its existing
 kernel driver. Installing the APO does not replace that driver or change its
 channel routing, headphones, microphone processing, boot policy or test mode.
 
-## Preview status
+## Release status
 
-Development in progress. The effects build and live installation evidence is
-recorded in [APO validation](docs/lenovo14e-apo-validation.md). Installation
+The [v0.3.1 speaker DSP release](https://github.com/chevydan6/lenovo-14e-sof-windows/releases/tag/v0.3.1)
+includes the adjusted output limit and verified live Windows audio processing.
+The effects build and installation evidence is recorded in
+[APO validation](docs/lenovo14e-apo-validation.md). Installation
 requires an elevated shell and temporarily restarts Windows audio services.
 The installer records the affected registry values for rollback, and refuses
 to silently replace an unrelated existing endpoint effect.
 
-This is an installable development effects package, not a Microsoft-signed
-production driver bundle. Native driver signing and firmware redistribution
+This is a test-signed effects package requiring Windows test mode, not a
+Microsoft-signed driver bundle. Native driver signing and firmware redistribution
 remain separate requirements; see [upstream signing notes](docs/driver-release-and-signing.md).
 
 ## Build the speaker effects
